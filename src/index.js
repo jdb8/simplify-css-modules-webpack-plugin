@@ -2,7 +2,7 @@ const postcss = require("postcss");
 const incstr = require("incstr");
 const { ReplaceSource } = require("webpack-sources");
 
-const deleteCssRulesPlugin = require("./postcss/deleteRules");
+const deleteCssRulesPlugin = require("./postcss/delete-rules");
 const manglePlugin = require("./postcss/mangle");
 
 const MAGIC_PREFIX = "__CSS_MODULE__";
@@ -25,16 +25,16 @@ const handleAfterOptimizeChunkAssets = (chunks, compilation) => {
       return;
     }
 
+    // We're going to be mutating the contents of this object to keep
+    // track of the css classname mappings
+    const cssClasses = {};
+
     // As we replace the classnames, keep track of any classes we see
     // that can be considered "dead", i.e. no js files reference them
     const deadCssClasses = new Set();
     [...chunksByExt.css, ...chunksByExt.js].forEach(file => {
       const originalSourceValue = compilation.assets[file].source();
       const replaceSource = new ReplaceSource(compilation.assets[file]);
-
-      // We're going to be mutating the contents of this object to keep
-      // track of the css classname mappings
-      const cssClasses = {};
 
       if (file.endsWith(".css")) {
         // Processing a css file involves running the mangle-css-selectors
@@ -63,6 +63,7 @@ const handleAfterOptimizeChunkAssets = (chunks, compilation) => {
         // performing a straight regex on the file. Given that css modules are
         // fairly unique and we advise prefixing them with the plugin's `magicPrefix`,
         // it should be fairly safe to do this without more sophisticated parsing etc.
+        console.log({ cssClasses });
         Object.entries(cssClasses).forEach(([oldClassName, newClassName]) => {
           let replaced = false;
           const re = new RegExp(oldClassName, "g");
