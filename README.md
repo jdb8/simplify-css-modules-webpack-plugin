@@ -1,5 +1,7 @@
 # simplify-css-modules-webpack-plugin
 
+⚠️ Super alpha initial exploration, probably full of bad ideas ‾\_(ツ)_/‾ ⚠️
+
 ## Installation
 
 ```bash
