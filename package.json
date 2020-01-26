@@ -1,6 +1,6 @@
 {
   "name": "simplify-css-modules-webpack-plugin",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Simplify your CSS Modules",
   "main": "./src/index.js",
   "devDependencies": {
