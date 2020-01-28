@@ -25,6 +25,7 @@
   "dependencies": {
     "incstr": "^1.2.3",
     "postcss": "^7.0.26",
+    "postcss-selector-parser": "^6.0.2",
     "webpack-sources": "^1.4.3"
   }
 }

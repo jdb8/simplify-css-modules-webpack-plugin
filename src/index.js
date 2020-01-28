@@ -63,7 +63,6 @@ const handleAfterOptimizeChunkAssets = (chunks, compilation) => {
         // performing a straight regex on the file. Given that css modules are
         // fairly unique and we advise prefixing them with the plugin's `magicPrefix`,
         // it should be fairly safe to do this without more sophisticated parsing etc.
-        console.log({ cssClasses });
         Object.entries(cssClasses).forEach(([oldClassName, newClassName]) => {
           let replaced = false;
           const re = new RegExp(oldClassName, "g");
@@ -79,7 +78,7 @@ const handleAfterOptimizeChunkAssets = (chunks, compilation) => {
 
           if (!replaced) {
             // If we didn't spot the classname anywhere in the chunk's js, mark it as dead
-            deadCssClasses.add("." + newClassName);
+            deadCssClasses.add(newClassName);
           }
         });
       }
