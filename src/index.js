@@ -114,9 +114,9 @@ class SimplifyCSSModulesPlugin {
       );
     });
   }
-
-  // TODO: consider making this dynamic at import or instantiation time
-  magicPrefix = MAGIC_PREFIX;
 }
+
+// TODO: consider making this dynamic at import or instantiation time
+SimplifyCSSModulesPlugin.magicPrefix = MAGIC_PREFIX;
 
 module.exports = SimplifyCSSModulesPlugin;
