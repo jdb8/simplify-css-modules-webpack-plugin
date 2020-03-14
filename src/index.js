@@ -110,11 +110,14 @@ async function handleOptimizeAssets(assets, compilation, options) {
         mangleAndTrackCSS(originalSourceValue, cssClasses, nextId, noMangle)
       );
     } else {
-      seenClasses = replaceClassesInlineInJS(
-        originalSourceValue,
-        replaceSource,
-        cssClasses
-      );
+      seenClasses = [
+        ...seenClasses,
+        ...replaceClassesInlineInJS(
+          originalSourceValue,
+          replaceSource,
+          cssClasses
+        )
+      ];
     }
 
     compilation.assets[file] = replaceSource;

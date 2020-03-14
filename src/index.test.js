@@ -3,11 +3,11 @@
  */
 const path = require("path");
 const fs = require("fs");
-const vm = require("vm");
 
 const webpack = require("webpack");
 const rimraf = require("rimraf");
 const merge = require("webpack-merge");
+const { JSDOM } = require("jsdom");
 
 const testingConfig = require("../testing/webpack.config");
 
@@ -59,41 +59,56 @@ it("doesn't crash", async () => {
   await runTestingBuild();
 });
 
-it("prints out a class name", async () => {
-  expect.assertions(1);
+it("prints out class names", async () => {
+  expect.assertions(4);
 
   await runTestingBuild();
   const outputJS = fs.readFileSync(
     path.join(testingDir, "dist", "main.js"),
     "utf8"
   );
-  const vmScript = new vm.Script(outputJS);
   const mockConsoleLog = jest.fn();
-  const context = { console: { log: mockConsoleLog } };
-  vmScript.runInNewContext(context);
+  const { window } = new JSDOM("", {
+    runScripts: "dangerously"
+  });
+  window.console.log = mockConsoleLog;
+  window.eval(outputJS);
+  expect(mockConsoleLog).toHaveBeenCalledTimes(1);
   expect(mockConsoleLog).toHaveBeenCalledWith(expect.any(String));
+  expect(mockConsoleLog).not.toHaveBeenCalledWith(undefined);
+  expect(mockConsoleLog).not.toHaveBeenCalledWith(null);
 });
 
 it.each([true, false])(
   "removes unused references from CSS with noMangle = %s",
   async noMangle => {
-    expect.assertions(2);
+    expect.assertions(4);
 
     const config = merge(testingConfig, {});
     config.plugins[0] = new SimplifyCssModulesPlugin({ noMangle });
 
     await runTestingBuild(config);
 
-    const outputJS = fs.readFileSync(
+    const outputMainJs = fs.readFileSync(
       path.join(testingDir, "dist", "main.js"),
       "utf8"
     );
-    const outputCSS = fs.readFileSync(
+    const outputChunkJs = fs.readFileSync(
+      path.join(testingDir, "dist", "foo.js"),
+      "utf8"
+    );
+    const outputMainCss = fs.readFileSync(
       path.join(testingDir, "dist", "main.css"),
       "utf8"
     );
+    const outputChunkCss = fs.readFileSync(
+      path.join(testingDir, "dist", "foo.css"),
+      "utf8"
+    );
 
-    expect(outputJS).not.toMatch("unused");
-    expect(outputCSS).not.toMatch(/color:\s?red/);
+    expect(outputMainJs).not.toMatch("unused");
+    expect(outputMainCss).not.toMatch(/color:\s?red/);
+    expect(outputChunkJs).not.toMatch("hi-there-not-used");
+    expect(outputChunkCss).not.toMatch(/color:\s?purple/);
   }
 );
