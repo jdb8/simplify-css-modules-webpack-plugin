@@ -9,7 +9,6 @@ const transform = (
   noMangle
 ) => {
   selectors.walkClasses(node => {
-    console.log(node.value);
     if (node.type !== "class") {
       return node;
     }
@@ -24,8 +23,9 @@ const transform = (
     // if we've already processed this selector, we re-use
     // the name rather than making 2+ different ones
     const oldClassName = node.value;
+
+    // Replace with a leading _ to ensure that any possible classnames are valid
     const cleanName = oldClassName.replace(requiredPrefix, "_");
-    console.log({ oldClassName, requiredPrefix, cleanName });
     const newClassName =
       cssClasses[oldClassName] || (noMangle ? cleanName : idGenerator());
 

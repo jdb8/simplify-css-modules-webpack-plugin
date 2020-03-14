@@ -69,14 +69,12 @@ async function deleteUnusedClasses(purger, cssSource, seenClasses) {
     extractorResult
   );
   const transformedCss = result.css;
-  console.log({ transformedCss });
   replaceSource.replace(0, originalSourceValue.length - 1, transformedCss);
   return replaceSource;
 }
 
 async function handleOptimizeAssets(assets, compilation, options) {
   const { noMangle, noDelete } = options;
-  console.log({ assets });
   const files = Object.keys(assets).filter(fileName => fileName !== "*");
   const nextId = incstr.idGenerator({
     prefix: "y_"
