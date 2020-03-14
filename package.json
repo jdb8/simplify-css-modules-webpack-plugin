@@ -3,6 +3,11 @@
   "version": "0.0.1",
   "description": "Simplify your CSS Modules",
   "main": "./src/index.js",
+  "scripts": {
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "test": "jest --env node"
+  },
   "devDependencies": {
     "@jbateson/eslint-config": "2.3.0",
     "@typescript-eslint/eslint-plugin": "^2.0.0",
@@ -16,16 +21,23 @@
     "eslint-plugin-prettier": "^3.1.0",
     "eslint-plugin-react": "^7.14.3",
     "eslint-plugin-react-hooks": "1.x",
+    "execa": "^4.0.0",
+    "fs-extra": "^8.1.0",
+    "jest": "^25.1.0",
     "mini-css-extract-plugin": "^0.9.0",
     "prettier": "^1.18.2",
+    "rimraf": "^3.0.2",
+    "tmp-promise": "^2.0.2",
     "webpack": "^4.41.5",
     "webpack-cli": "^3.3.10",
-    "webpack-dev-server": "^3.10.1"
+    "webpack-dev-server": "^3.10.1",
+    "webpack-merge": "^4.2.2"
   },
   "dependencies": {
     "incstr": "^1.2.3",
     "postcss": "^7.0.26",
     "postcss-selector-parser": "^6.0.2",
+    "purgecss": "^2.1.0",
     "webpack-sources": "^1.4.3"
   }
 }

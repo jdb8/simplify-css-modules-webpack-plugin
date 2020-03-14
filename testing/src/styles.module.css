@@ -1,0 +1,19 @@
+.unused {
+    color: red;
+}
+
+.used {
+    color: green;
+}
+
+.used:hover {
+    color: blue;
+}
+
+.unused > .used {
+    background: black;
+}
+
+.used > .unused {
+    background: white;
+}
