@@ -76,8 +76,6 @@ it.each([true, false])(
     const config = merge(testingConfig, {});
     config.plugins[0] = new SimplifyCssModulesPlugin({ noMangle });
 
-    console.log({ config });
-
     await runTestingBuild(config);
 
     const outputJS = fs.readFileSync(
@@ -88,8 +86,6 @@ it.each([true, false])(
       path.join(testingDir, "dist", "main.css"),
       "utf8"
     );
-
-    console.log({ outputCSS, outputJS });
 
     expect(outputJS).not.toMatch("unused");
     expect(outputCSS).not.toMatch(/color:\s?red/);
