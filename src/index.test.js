@@ -9,14 +9,16 @@ const webpack = require("webpack");
 const rimraf = require("rimraf");
 const merge = require("webpack-merge");
 
+const testingConfig = require("../testing/webpack.config");
+
 const SimplifyCssModulesPlugin = require("./");
 
 const testingDir = path.join(__dirname, "..", "testing");
-const testingConfig = require("../testing/webpack.config");
 
 const cwd = process.cwd();
 
 beforeEach(() => {
+  rimraf.sync(path.join(testingDir, "dist"));
   process.chdir(testingDir);
 });
 
@@ -33,21 +35,22 @@ async function runTestingBuild(config = testingConfig) {
         if (err.details) {
           console.error(err.details);
         }
-        reject(err);
+        return reject(err);
       }
 
       const info = stats.toJson();
 
       if (stats.hasErrors()) {
         console.error(info.errors);
-        reject(info.errors);
+        return reject(info.errors);
       }
 
       if (stats.hasWarnings()) {
         console.warn(info.warnings);
       }
 
-      resolve();
+      console.log("resolving");
+      return resolve();
     });
   });
 }
@@ -57,6 +60,8 @@ it("doesn't crash", async () => {
 });
 
 it("prints out a class name", async () => {
+  expect.assertions(1);
+
   await runTestingBuild();
   const outputJS = fs.readFileSync(
     path.join(testingDir, "dist", "main.js"),
@@ -73,6 +78,7 @@ it.each([true, false])(
   "removes unused references from CSS with noMangle = %s",
   async noMangle => {
     expect.assertions(2);
+
     const config = merge(testingConfig, {});
     config.plugins[0] = new SimplifyCssModulesPlugin({ noMangle });
 

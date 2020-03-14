@@ -6,7 +6,8 @@
   "scripts": {
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
-    "test": "jest --env node"
+    "test": "jest --env node",
+    "manual-test": "cd testing && webpack"
   },
   "devDependencies": {
     "@jbateson/eslint-config": "2.3.0",
