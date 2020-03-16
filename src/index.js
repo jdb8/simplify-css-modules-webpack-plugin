@@ -1,116 +1,156 @@
 const postcss = require("postcss");
+const purgecss = require("purgecss");
 const incstr = require("incstr");
 const { ReplaceSource } = require("webpack-sources");
 
-const deleteCssRulesPlugin = require("./postcss/delete-rules");
 const manglePlugin = require("./postcss/mangle");
 
 const MAGIC_PREFIX = "__CSS_MODULE__";
 
-const handleAfterOptimizeChunkAssets = (chunks, compilation) => {
-  chunks.forEach(chunk => {
-    const nextId = incstr.idGenerator({ prefix: "y_", suffix: `_${chunk.id}` });
+function mangleAndTrackCSS(originalSourceValue, cssClasses, nextId, noMangle) {
+  // Processing a css file involves running the mangle-css-selectors
+  // plugin and replacing the original file. Also pass in `cssSelectors`
+  // to collect up the mapping
+  //
+  // TODO: find a more elegant way of dealing with state here? Not sure
+  // if postcss plugins must behave nicely with regards to caching - if
+  // so, this isn't correct. Store state as comments in css and remove?
+  return postcss([
+    manglePlugin({
+      idGenerator: nextId,
+      cssClasses,
+      requiredPrefix: MAGIC_PREFIX,
+      disable: noMangle
+    })
+  ]).process(originalSourceValue).css;
+}
 
-    const chunksByExt = { js: [], css: [] };
-    chunk.files.forEach(file => {
-      if (file.endsWith(".css")) {
-        chunksByExt.css.push(file);
-      } else if (file.endsWith(".js")) {
-        chunksByExt.js.push(file);
-      }
-    });
+function replaceClassesInlineInJS(
+  originalSourceValue,
+  replaceSource,
+  cssClasses
+) {
+  // Js processing involves taking the collected css mappings and just
+  // performing a straight regex on the file. Given that css modules are
+  // fairly unique and we advise prefixing them with the plugin's `magicPrefix`,
+  // it should be fairly safe to do this without more sophisticated parsing etc.
+  const seen = [];
+  Object.entries(cssClasses).forEach(([oldClassName, newClassName]) => {
+    const re = new RegExp(oldClassName, "g");
+    let match;
+    while ((match = re.exec(originalSourceValue)) !== null) {
+      replaceSource.replace(
+        match.index,
+        match.index + match[0].length - 1,
+        newClassName
+      );
+      seen.push(newClassName);
+    }
+  });
 
-    // We only care if there's css files to be analysed
-    if (!chunksByExt.css.length) {
-      return;
+  return seen;
+}
+
+async function deleteUnusedClasses(purger, cssSource, seenClasses) {
+  const originalSourceValue = cssSource.source();
+  const replaceSource = new ReplaceSource(cssSource);
+  const extractorResult = {
+    attributes: {
+      names: [],
+      values: []
+    },
+    classes: seenClasses,
+    ids: [],
+    tags: [],
+    undetermined: []
+  };
+  const [result] = await purger.getPurgedCSS(
+    [{ raw: originalSourceValue }],
+    extractorResult
+  );
+  const transformedCss = result.css;
+  replaceSource.replace(0, originalSourceValue.length - 1, transformedCss);
+  return replaceSource;
+}
+
+async function handleOptimizeAssets(assets, compilation, options) {
+  const { noMangle, noDelete } = options;
+  const files = Object.keys(assets).filter(fileName => fileName !== "*");
+  const nextId = incstr.idGenerator({
+    prefix: "y_"
+  });
+  const filesByExt = { js: [], css: [] };
+  files.forEach(file => {
+    if (file.endsWith(".css")) {
+      filesByExt.css.push(file);
+    } else if (file.endsWith(".js")) {
+      filesByExt.js.push(file);
+    }
+  });
+
+  // We only care if there's css files to be analysed
+  if (!filesByExt.css.length) {
+    return;
+  }
+
+  // We're going to be mutating the contents of this object to keep
+  // track of the css classname mappings
+  const cssClasses = {};
+
+  let seenClasses = [];
+  [...filesByExt.css, ...filesByExt.js].forEach(file => {
+    const originalSourceValue = compilation.assets[file].source();
+    const replaceSource = new ReplaceSource(compilation.assets[file]);
+
+    if (file.endsWith(".css")) {
+      // Replace the entire source
+      replaceSource.replace(
+        0,
+        originalSourceValue.length - 1,
+        mangleAndTrackCSS(originalSourceValue, cssClasses, nextId, noMangle)
+      );
+    } else {
+      seenClasses = [
+        ...seenClasses,
+        ...replaceClassesInlineInJS(
+          originalSourceValue,
+          replaceSource,
+          cssClasses
+        )
+      ];
     }
 
-    // We're going to be mutating the contents of this object to keep
-    // track of the css classname mappings
-    const cssClasses = {};
+    compilation.assets[file] = replaceSource;
+  });
 
-    // As we replace the classnames, keep track of any classes we see
-    // that can be considered "dead", i.e. no js files reference them
-    const deadCssClasses = new Set();
-    [...chunksByExt.css, ...chunksByExt.js].forEach(file => {
-      const originalSourceValue = compilation.assets[file].source();
-      const replaceSource = new ReplaceSource(compilation.assets[file]);
-
-      if (file.endsWith(".css")) {
-        // Processing a css file involves running the mangle-css-selectors
-        // plugin and replacing the original file. Also pass in `cssSelectors`
-        // to collect up the mapping
-        //
-        // TODO: find a more elegant way of dealing with state here? Not sure
-        // if postcss plugins must behave nicely with regards to caching - if
-        // so, this isn't correct. Store state as comments in css and remove?
-        const transformedCss = postcss([
-          manglePlugin({
-            idGenerator: nextId,
-            cssClasses,
-            requiredPrefix: MAGIC_PREFIX
-          })
-        ]).process(originalSourceValue).css;
-
-        // Replace the entire source
-        replaceSource.replace(
-          0,
-          originalSourceValue.length - 1,
-          transformedCss
-        );
-      } else {
-        // Js processing involves taking the collected css mappings and just
-        // performing a straight regex on the file. Given that css modules are
-        // fairly unique and we advise prefixing them with the plugin's `magicPrefix`,
-        // it should be fairly safe to do this without more sophisticated parsing etc.
-        Object.entries(cssClasses).forEach(([oldClassName, newClassName]) => {
-          let replaced = false;
-          const re = new RegExp(oldClassName, "g");
-          let match;
-          while ((match = re.exec(originalSourceValue)) !== null) {
-            replaceSource.replace(
-              match.index,
-              match.index + match[0].length - 1,
-              newClassName
-            );
-            replaced = true;
-          }
-
-          if (!replaced) {
-            // If we didn't spot the classname anywhere in the chunk's js, mark it as dead
-            deadCssClasses.add(newClassName);
-          }
-        });
-      }
-
-      compilation.assets[file] = replaceSource;
-    });
+  if (!noDelete) {
+    const purger = new purgecss.PurgeCSS();
 
     // Perform one final pass on the css files to remove any rules that we
     // saw weren't referenced at all in the chunk
     // TODO: merge this somehow with above logic to improve perf (is it slow?)
-    chunksByExt.css.forEach(file => {
-      const originalSourceValue = compilation.assets[file].source();
-      const replaceSource = new ReplaceSource(compilation.assets[file]);
-      const transformedCss = postcss([
-        deleteCssRulesPlugin({ selectorsToDelete: deadCssClasses })
-      ]).process(originalSourceValue).css;
-      replaceSource.replace(0, originalSourceValue.length - 1, transformedCss);
-      compilation.assets[file] = replaceSource;
+    const replacements = filesByExt.css.map(async file => {
+      return deleteUnusedClasses(
+        purger,
+        compilation.assets[file],
+        seenClasses
+      ).then(replaceSource => (compilation.assets[file] = replaceSource));
     });
-  });
-};
+
+    return Promise.all(replacements);
+  }
+}
 
 class SimplifyCSSModulesPlugin {
   constructor(options) {
-    this.options = options;
+    this.options = options || {};
   }
 
   apply(compiler) {
     compiler.hooks.compilation.tap("SimplifyCSSModulesPlugin", compilation => {
-      compilation.hooks.afterOptimizeChunkAssets.tap(
+      compilation.hooks.optimizeAssets.tapPromise(
         "SimplifyCSSModulesPlugin",
-        chunks => handleAfterOptimizeChunkAssets(chunks, compilation)
+        assets => handleOptimizeAssets(assets, compilation, this.options)
       );
     });
   }

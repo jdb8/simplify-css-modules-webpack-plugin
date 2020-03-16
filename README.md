@@ -41,6 +41,8 @@ module.exports = {
 
 **It's also strongly recommended to enable the `esModule: true` option on both `css-loader` and the `mini-css-extract-plugin` loader**. Doing so should produce smaller tree-shaken js and css bundles.
 
+See the [testing dir](testing) for an example.
+
 ## Behaviour
 
 The plugin will run on the js and css files in each of the chunks produced by your build. It will run after chunk assets have been optimised (i.e. after terser/other minifiers have run).
@@ -51,7 +53,7 @@ As a second step, any classnames that were not found referenced in the js files 
 
 ## Why?
 
-### Unique-per-chunk selectors
+### Unique, short selectors
 
 CSS Modules are great, but one problem they face is that it's possible to end up with the same rule in two different chunks depending on your `splitChunks` settings or use of dynamic imports.
 
