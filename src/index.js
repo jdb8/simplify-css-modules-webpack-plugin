@@ -1,3 +1,6 @@
+const fs = require("fs");
+const path = require("path");
+
 const postcss = require("postcss");
 const purgecss = require("purgecss");
 const incstr = require("incstr");
@@ -74,11 +77,14 @@ async function deleteUnusedClasses(purger, cssSource, seenClasses) {
 }
 
 async function handleOptimizeAssets(assets, compilation, options) {
-  const { noMangle, noDelete } = options;
+  const { noMangle, noDelete, mappingFileName } = options;
+  const outputPath = compilation.options.output.path;
+  const mappingFilePath =
+    mappingFileName && path.join(outputPath, mappingFileName);
+  const existingDiskClassMappings =
+    mappingFileName && fs.existsSync(mappingFilePath);
   const files = Object.keys(assets).filter(fileName => fileName !== "*");
-  const nextId = incstr.idGenerator({
-    prefix: "y_"
-  });
+
   const filesByExt = { js: [], css: [] };
   files.forEach(file => {
     if (file.endsWith(".css")) {
@@ -95,14 +101,27 @@ async function handleOptimizeAssets(assets, compilation, options) {
 
   // We're going to be mutating the contents of this object to keep
   // track of the css classname mappings
-  const cssClasses = {};
+  // If we've been passed a mapping file, use the pre-existing mappings
+  if (existingDiskClassMappings) {
+    console.log(
+      `[SimplifyCSSModulesPlugin] Found existing classname mapping file at ${mappingFileName} - reading from disk.`
+    );
+  }
+
+  const cssClasses = existingDiskClassMappings
+    ? JSON.parse(fs.readFileSync(mappingFilePath, "utf8"))
+    : {};
 
   let seenClasses = [];
-  [...filesByExt.css, ...filesByExt.js].forEach(file => {
+  [...filesByExt.css, ...filesByExt.js].forEach((file, index) => {
     const originalSourceValue = compilation.assets[file].source();
     const replaceSource = new ReplaceSource(compilation.assets[file]);
 
     if (file.endsWith(".css")) {
+      const nextId = incstr.idGenerator({
+        prefix: "y_",
+        suffix: `_${index}`
+      });
       // Replace the entire source
       replaceSource.replace(
         0,
@@ -122,6 +141,21 @@ async function handleOptimizeAssets(assets, compilation, options) {
 
     compilation.assets[file] = replaceSource;
   });
+
+  if (!existingDiskClassMappings && mappingFileName) {
+    console.log(
+      `[SimplifyCSSModulesPlugin] Writing css classname mappings to ${mappingFileName}.`
+    );
+    const jsonClassNameMapping = JSON.stringify(cssClasses);
+    compilation.assets[mappingFileName] = {
+      source: function() {
+        return jsonClassNameMapping;
+      },
+      size: function() {
+        return jsonClassNameMapping.length;
+      }
+    };
+  }
 
   if (!noDelete) {
     const purger = new purgecss.PurgeCSS();

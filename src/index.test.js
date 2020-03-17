@@ -6,10 +6,9 @@ const fs = require("fs");
 
 const webpack = require("webpack");
 const rimraf = require("rimraf");
-const merge = require("webpack-merge");
 const { JSDOM } = require("jsdom");
 
-const testingConfig = require("../testing/webpack.config");
+const generateConfig = require("../testing/generate-config");
 
 const SimplifyCssModulesPlugin = require("./");
 
@@ -27,7 +26,7 @@ afterEach(() => {
   rimraf.sync(path.join(testingDir, "dist"));
 });
 
-async function runTestingBuild(config = testingConfig) {
+async function runTestingBuild(config = generateConfig()) {
   return new Promise((resolve, reject) => {
     webpack(config, (err, stats) => {
       if (err) {
@@ -49,7 +48,6 @@ async function runTestingBuild(config = testingConfig) {
         console.warn(info.warnings);
       }
 
-      console.log("resolving");
       return resolve();
     });
   });
@@ -79,13 +77,40 @@ it("prints out class names", async () => {
   expect(mockConsoleLog).not.toHaveBeenCalledWith(null);
 });
 
+it("reuses existing classname mappings from disk", async () => {
+  const config = generateConfig(
+    new SimplifyCssModulesPlugin({
+      mappingFileName: "mappings.json"
+    })
+  );
+
+  fs.mkdirSync(path.join(testingDir, "dist"));
+  fs.writeFileSync(
+    path.join(testingDir, "dist", "mappings.json"),
+    JSON.stringify({
+      [`${SimplifyCssModulesPlugin.magicPrefix}used`]: "my-disk-hashed-classname"
+    })
+  );
+
+  await runTestingBuild(config);
+  const outputMainJS = fs.readFileSync(
+    path.join(testingDir, "dist", "main.js"),
+    "utf8"
+  );
+  const outputMainCss = fs.readFileSync(
+    path.join(testingDir, "dist", "main.css"),
+    "utf8"
+  );
+  expect(outputMainJS).toMatch("my-disk-hashed-classname");
+  expect(outputMainCss).toMatch("my-disk-hashed-classname");
+});
+
 it.each([true, false])(
   "removes unused references from CSS with noMangle = %s",
   async noMangle => {
     expect.assertions(4);
 
-    const config = merge(testingConfig, {});
-    config.plugins[0] = new SimplifyCssModulesPlugin({ noMangle });
+    const config = generateConfig(new SimplifyCssModulesPlugin({ noMangle }));
 
     await runTestingBuild(config);
 
