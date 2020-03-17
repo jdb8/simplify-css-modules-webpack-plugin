@@ -4,11 +4,14 @@ jobs:
   install:
     name: Install
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [ '12', '10', '8' ]
     steps:
     - uses: actions/checkout@master
     - uses: actions/setup-node@v1
       with:
-        node-version: '12.x'
+        node-version: ${{ matrix.node }}
     - run: yarn install
     - run: yarn lint
     - run: yarn test
