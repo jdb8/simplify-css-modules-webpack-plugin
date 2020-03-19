@@ -1,16 +1,27 @@
 const fs = require("fs");
 const path = require("path");
+const { promisify } = require("util");
 
 const postcss = require("postcss");
 const purgecss = require("purgecss");
 const incstr = require("incstr");
 const { ReplaceSource } = require("webpack-sources");
+const makeDir = require("make-dir");
+const debug = require("debug")("simplify-css-modules-webpack-plugin");
 
 const manglePlugin = require("./postcss/mangle");
 
 const MAGIC_PREFIX = "__CSS_MODULE__";
 
-function mangleAndTrackCSS(originalSourceValue, cssClasses, nextId, noMangle) {
+const writeFilePromise = promisify(fs.writeFile);
+
+function mangleAndTrackCSS(
+  filePath,
+  originalSourceValue,
+  cssClasses,
+  nextId,
+  noMangle
+) {
   // Processing a css file involves running the mangle-css-selectors
   // plugin and replacing the original file. Also pass in `cssSelectors`
   // to collect up the mapping
@@ -25,7 +36,7 @@ function mangleAndTrackCSS(originalSourceValue, cssClasses, nextId, noMangle) {
       requiredPrefix: MAGIC_PREFIX,
       disable: noMangle
     })
-  ]).process(originalSourceValue).css;
+  ]).process(originalSourceValue, { from: filePath, to: filePath }).css;
 }
 
 function replaceClassesInlineInJS(
@@ -62,7 +73,9 @@ async function deleteUnusedClasses(purger, cssSource, seenClasses) {
       names: [],
       values: []
     },
-    classes: seenClasses,
+    // Our seen classes don't include the magic prefix, which still exists
+    // in our representation of the css source: ensure we prefix
+    classes: seenClasses.map(name => `${MAGIC_PREFIX}${name}`),
     ids: [],
     tags: [],
     undetermined: []
@@ -72,17 +85,27 @@ async function deleteUnusedClasses(purger, cssSource, seenClasses) {
     extractorResult
   );
   const transformedCss = result.css;
+  debug({
+    rejectedCount: result.rejected.length,
+    seenClassesCount: seenClasses.length
+  });
   replaceSource.replace(0, originalSourceValue.length - 1, transformedCss);
   return replaceSource;
 }
 
-async function handleOptimizeAssets(assets, compilation, options) {
-  const { noMangle, noDelete, mappingFileName } = options;
-  const outputPath = compilation.options.output.path;
-  const mappingFilePath =
-    mappingFileName && path.join(outputPath, mappingFileName);
-  const existingDiskClassMappings =
-    mappingFileName && fs.existsSync(mappingFilePath);
+function removeMagicPrefix(cssSource) {
+  const originalSourceValue = cssSource.source();
+  const replaceSource = new ReplaceSource(cssSource);
+  const re = new RegExp(MAGIC_PREFIX, "g");
+  let match;
+  while ((match = re.exec(originalSourceValue)) !== null) {
+    replaceSource.replace(match.index, match.index + match[0].length - 1, "");
+  }
+  return replaceSource;
+}
+
+async function handleOptimizeAssets(assets, compilation, cssClasses, options) {
+  const { noMangle, noDelete } = options;
   const files = Object.keys(assets).filter(fileName => fileName !== "*");
 
   const filesByExt = { js: [], css: [] };
@@ -94,28 +117,12 @@ async function handleOptimizeAssets(assets, compilation, options) {
     }
   });
 
-  // We only care if there's css files to be analysed
-  if (!filesByExt.css.length) {
-    return;
-  }
-
-  // We're going to be mutating the contents of this object to keep
-  // track of the css classname mappings
-  // If we've been passed a mapping file, use the pre-existing mappings
-  if (existingDiskClassMappings) {
-    console.log(
-      `[SimplifyCSSModulesPlugin] Found existing classname mapping file at ${mappingFileName} - reading from disk.`
-    );
-  }
-
-  const cssClasses = existingDiskClassMappings
-    ? JSON.parse(fs.readFileSync(mappingFilePath, "utf8"))
-    : {};
-
   let seenClasses = [];
   [...filesByExt.css, ...filesByExt.js].forEach((file, index) => {
-    const originalSourceValue = compilation.assets[file].source();
-    const replaceSource = new ReplaceSource(compilation.assets[file]);
+    const sourceObj = compilation.assets[file];
+    const originalSourceValue = sourceObj.source();
+    const replaceSource = new ReplaceSource(sourceObj);
+    const filePath = path.resolve(compilation.outputOptions.path, file);
 
     if (file.endsWith(".css")) {
       const nextId = incstr.idGenerator({
@@ -126,7 +133,13 @@ async function handleOptimizeAssets(assets, compilation, options) {
       replaceSource.replace(
         0,
         originalSourceValue.length - 1,
-        mangleAndTrackCSS(originalSourceValue, cssClasses, nextId, noMangle)
+        mangleAndTrackCSS(
+          filePath,
+          originalSourceValue,
+          cssClasses,
+          nextId,
+          noMangle
+        )
       );
     } else {
       seenClasses = [
@@ -142,37 +155,32 @@ async function handleOptimizeAssets(assets, compilation, options) {
     compilation.assets[file] = replaceSource;
   });
 
-  if (!existingDiskClassMappings && mappingFileName) {
-    console.log(
-      `[SimplifyCSSModulesPlugin] Writing css classname mappings to ${mappingFileName}.`
-    );
-    const jsonClassNameMapping = JSON.stringify(cssClasses);
-    compilation.assets[mappingFileName] = {
-      source: function() {
-        return jsonClassNameMapping;
-      },
-      size: function() {
-        return jsonClassNameMapping.length;
-      }
-    };
-  }
-
   if (!noDelete) {
     const purger = new purgecss.PurgeCSS();
+
+    purger.options.rejected = true;
+
+    // Whitelist all non-module selectors: we're only deleting css module classes
+    purger.options.whitelistPatterns = [new RegExp(`^(?!${MAGIC_PREFIX}.*).*`)];
 
     // Perform one final pass on the css files to remove any rules that we
     // saw weren't referenced at all in the chunk
     // TODO: merge this somehow with above logic to improve perf (is it slow?)
     const replacements = filesByExt.css.map(async file => {
-      return deleteUnusedClasses(
-        purger,
-        compilation.assets[file],
-        seenClasses
-      ).then(replaceSource => (compilation.assets[file] = replaceSource));
+      return deleteUnusedClasses(purger, compilation.assets[file], seenClasses)
+        .then(removeMagicPrefix)
+        .then(replaceSource => (compilation.assets[file] = replaceSource));
     });
 
-    return Promise.all(replacements);
+    await Promise.all(replacements);
   }
+
+  filesByExt.css.forEach(file => {
+    const replaceSource = removeMagicPrefix(compilation.assets[file]);
+    compilation.assets[file] = replaceSource;
+  });
+
+  return true;
 }
 
 class SimplifyCSSModulesPlugin {
@@ -181,12 +189,40 @@ class SimplifyCSSModulesPlugin {
   }
 
   apply(compiler) {
+    const { mappingFilePath } = this.options;
+
+    // We're going to be mutating the contents of this object to keep
+    // track of the css classname mappings
+    // If we've been passed a mapping file, use the pre-existing mappings
+    let cssClasses = {};
+    if (mappingFilePath && fs.existsSync(mappingFilePath)) {
+      console.log(
+        `[SimplifyCSSModulesPlugin] Found existing classname mapping file at ${mappingFilePath} - reading from disk.`
+      );
+      cssClasses = JSON.parse(fs.readFileSync(mappingFilePath, "utf8"));
+    }
+
     compiler.hooks.compilation.tap("SimplifyCSSModulesPlugin", compilation => {
       compilation.hooks.optimizeAssets.tapPromise(
         "SimplifyCSSModulesPlugin",
-        assets => handleOptimizeAssets(assets, compilation, this.options)
+        assets =>
+          handleOptimizeAssets(assets, compilation, cssClasses, this.options)
       );
     });
+
+    if (mappingFilePath) {
+      compiler.hooks.emit.tapPromise(
+        "SimplifyCSSModulesPlugin",
+        async compiler => {
+          console.log(
+            `[SimplifyCSSModulesPlugin] Writing css classname mappings to ${mappingFilePath}.`
+          );
+          const jsonClassNameMapping = JSON.stringify(cssClasses);
+          await makeDir(path.dirname(mappingFilePath));
+          return writeFilePromise(mappingFilePath, jsonClassNameMapping);
+        }
+      );
+    }
   }
 }
 

@@ -1,3 +1,11 @@
+:global .global {
+    font-family: sans-serif;
+}
+
+:global #cool-id {
+    background: orange;
+}
+
 .unused {
     color: red;
 }

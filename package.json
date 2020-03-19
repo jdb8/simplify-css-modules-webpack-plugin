@@ -32,7 +32,9 @@
     "webpack-dev-server": "^3.10.1"
   },
   "dependencies": {
+    "debug": "^4.1.1",
     "incstr": "^1.2.3",
+    "make-dir": "^3.0.2",
     "postcss": "^7.0.26",
     "postcss-selector-parser": "^6.0.2",
     "purgecss": "^2.1.0",
