@@ -22,18 +22,19 @@
     "eslint-plugin-prettier": "^3.1.0",
     "eslint-plugin-react": "^7.14.3",
     "eslint-plugin-react-hooks": "1.x",
-    "jest": "^25.1.0",
-    "jsdom": "^16.2.1",
+    "jest": "^24.9.0",
+    "jsdom": "^15.2.1",
     "mini-css-extract-plugin": "^0.9.0",
     "prettier": "^1.18.2",
     "rimraf": "^3.0.2",
     "webpack": "^4.41.5",
     "webpack-cli": "^3.3.10",
-    "webpack-dev-server": "^3.10.1",
-    "webpack-merge": "^4.2.2"
+    "webpack-dev-server": "^3.10.1"
   },
   "dependencies": {
+    "debug": "^4.1.1",
     "incstr": "^1.2.3",
+    "make-dir": "^3.0.2",
     "postcss": "^7.0.26",
     "postcss-selector-parser": "^6.0.2",
     "purgecss": "^2.1.0",

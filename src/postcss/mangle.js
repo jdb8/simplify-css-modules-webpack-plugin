@@ -30,7 +30,9 @@ const transform = (
       cssClasses[oldClassName] || (noMangle ? cleanName : idGenerator());
 
     cssClasses[oldClassName] = newClassName;
-    node.value = newClassName;
+
+    // Preserve the magic prefix for now, we'll remove it later
+    node.value = `${requiredPrefix}${newClassName}`;
   });
 };
 

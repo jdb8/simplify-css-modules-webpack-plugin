@@ -6,10 +6,9 @@ const fs = require("fs");
 
 const webpack = require("webpack");
 const rimraf = require("rimraf");
-const merge = require("webpack-merge");
 const { JSDOM } = require("jsdom");
 
-const testingConfig = require("../testing/webpack.config");
+const generateConfig = require("../testing/generate-config");
 
 const SimplifyCssModulesPlugin = require("./");
 
@@ -27,7 +26,7 @@ afterEach(() => {
   rimraf.sync(path.join(testingDir, "dist"));
 });
 
-async function runTestingBuild(config = testingConfig) {
+async function runTestingBuild(config = generateConfig()) {
   return new Promise((resolve, reject) => {
     webpack(config, (err, stats) => {
       if (err) {
@@ -49,66 +48,124 @@ async function runTestingBuild(config = testingConfig) {
         console.warn(info.warnings);
       }
 
-      console.log("resolving");
       return resolve();
     });
   });
 }
 
-it("doesn't crash", async () => {
-  await runTestingBuild();
+it("generates a mapping file on disk if option supplied", async () => {
+  expect.assertions(1);
+
+  const config = generateConfig(
+    new SimplifyCssModulesPlugin({
+      mappingFilePath: path.join(testingDir, "dist", "mappings.json")
+    })
+  );
+
+  await runTestingBuild(config);
+  expect(
+    JSON.parse(fs.readFileSync(path.join(testingDir, "dist", "mappings.json")))
+  ).toBeTruthy();
 });
 
-it("prints out class names", async () => {
-  expect.assertions(4);
+it("reuses existing classname mappings from disk", async () => {
+  expect.assertions(2);
 
-  await runTestingBuild();
-  const outputJS = fs.readFileSync(
+  const config = generateConfig(
+    new SimplifyCssModulesPlugin({
+      mappingFilePath: path.join(testingDir, "dist", "mappings.json")
+    })
+  );
+
+  fs.mkdirSync(path.join(testingDir, "dist"));
+  fs.writeFileSync(
+    path.join(testingDir, "dist", "mappings.json"),
+    JSON.stringify({
+      [`${SimplifyCssModulesPlugin.magicPrefix}used`]: "my-disk-hashed-classname"
+    })
+  );
+
+  await runTestingBuild(config);
+  const outputMainJS = fs.readFileSync(
     path.join(testingDir, "dist", "main.js"),
     "utf8"
   );
-  const mockConsoleLog = jest.fn();
-  const { window } = new JSDOM("", {
-    runScripts: "dangerously"
-  });
-  window.console.log = mockConsoleLog;
-  window.eval(outputJS);
-  expect(mockConsoleLog).toHaveBeenCalledTimes(1);
-  expect(mockConsoleLog).toHaveBeenCalledWith(expect.any(String));
-  expect(mockConsoleLog).not.toHaveBeenCalledWith(undefined);
-  expect(mockConsoleLog).not.toHaveBeenCalledWith(null);
+  const outputMainCss = fs.readFileSync(
+    path.join(testingDir, "dist", "main.css"),
+    "utf8"
+  );
+  expect(outputMainJS).toMatch("my-disk-hashed-classname");
+  expect(outputMainCss).toMatch("my-disk-hashed-classname");
 });
 
-it.each([true, false])(
-  "removes unused references from CSS with noMangle = %s",
-  async noMangle => {
-    expect.assertions(4);
+it("does not delete classes if noDelete = true", async () => {
+  const config = generateConfig(
+    new SimplifyCssModulesPlugin({ noDelete: true, noMangle: true })
+  );
+  await runTestingBuild(config);
+  const outputMainCss = fs.readFileSync(
+    path.join(testingDir, "dist", "main.css"),
+    "utf8"
+  );
+  expect(outputMainCss).toMatch("unused");
+});
 
-    const config = merge(testingConfig, {});
-    config.plugins[0] = new SimplifyCssModulesPlugin({ noMangle });
+describe.each([true, false])("with noMangle = %s", noMangle => {
+  let outputMainJs, outputMainCss, outputFooJs, outputFooCss;
+  let allFiles;
 
+  beforeEach(async () => {
+    const config = generateConfig(new SimplifyCssModulesPlugin({ noMangle }));
     await runTestingBuild(config);
-
-    const outputMainJs = fs.readFileSync(
+    outputMainJs = fs.readFileSync(
       path.join(testingDir, "dist", "main.js"),
       "utf8"
     );
-    const outputChunkJs = fs.readFileSync(
+    outputFooJs = fs.readFileSync(
       path.join(testingDir, "dist", "foo.js"),
       "utf8"
     );
-    const outputMainCss = fs.readFileSync(
+    outputMainCss = fs.readFileSync(
       path.join(testingDir, "dist", "main.css"),
       "utf8"
     );
-    const outputChunkCss = fs.readFileSync(
+    outputFooCss = fs.readFileSync(
       path.join(testingDir, "dist", "foo.css"),
       "utf8"
     );
+    allFiles = [outputMainJs, outputMainCss, outputFooJs, outputFooCss];
+  });
 
+  it("prints out class names", () => {
+    const mockConsoleLog = jest.fn();
+    const { window } = new JSDOM("", {
+      runScripts: "dangerously"
+    });
+    window.console.log = mockConsoleLog;
+    window.eval(outputMainJs);
+
+    expect(mockConsoleLog).toHaveBeenCalledTimes(1);
+    expect(mockConsoleLog).toHaveBeenCalledWith(expect.any(String));
+    expect(mockConsoleLog).not.toHaveBeenCalledWith(undefined);
+    expect(mockConsoleLog).not.toHaveBeenCalledWith(null);
+  });
+
+  it("removes unused references from CSS", () => {
     expect(outputMainJs).not.toMatch("unused");
     expect(outputMainCss).not.toMatch(/color:\s?red/);
-    expect(outputChunkJs).not.toMatch("hi-there-not-used");
-    expect(outputChunkCss).not.toMatch(/color:\s?purple/);
-  }
-);
+    expect(outputFooJs).not.toMatch("hi-there-not-used");
+    expect(outputFooCss).not.toMatch(/color:\s?purple/);
+  });
+
+  it("removes all magic prefixes", () => {
+    // Sanity check that we haven't left anything behind
+    allFiles.forEach(file =>
+      expect(file).not.toMatch(SimplifyCssModulesPlugin.magicPrefix)
+    );
+  });
+
+  it("preserves non-module selectors", () => {
+    expect(outputMainCss).toMatch(".global");
+    expect(outputMainCss).toMatch("#cool-id");
+  });
+});
