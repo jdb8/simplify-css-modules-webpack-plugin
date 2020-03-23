@@ -1,5 +1,7 @@
 # simplify-css-modules-webpack-plugin
 
+![](https://github.com/jdb8/simplify-css-modules-webpack-plugin/workflows/main/badge.svg)
+
 ⚠️ **Use with caution: this plugin is experimental!** ⚠️
 
 ## Installation
