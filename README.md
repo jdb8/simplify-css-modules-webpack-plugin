@@ -23,6 +23,7 @@ module.exports = {
         {
           loader: "css-loader",
           options: {
+            esModule: true,
             modules: {
               // It's important to prefix your css-loader's localIdentName with
               // the plugin's "magic prefix" so that it's easier for the plugin
@@ -45,7 +46,7 @@ See the [testing dir](testing) for an example.
 
 ## Behaviour
 
-The plugin will run on the js and css files in each of the chunks produced by your build. It will run after chunk assets have been optimised (i.e. after terser/other minifiers have run).
+The plugin will run on the js and css files produced by your build. It will run after assets have been optimised (i.e. after terser/other minifiers have run).
 
 If it identifies CSS Modules, it will reduce the size of classnames via mangling and update the importing js file.
 
@@ -66,4 +67,31 @@ It's tricky to fully tree-shake css modules without resorting to a tool like Pur
 Since we're iterating over the css module rules and finding connections between the js files that import from them, we can perform an additional pass using this information to remove unused rules that we otherwise wouldn't know about.
 
 
+## Known limitations
 
+### css-loader / mini-css-extract-plugin inlining of class mappings
+
+It's common for css-loader to export the entire mapping of classnames -> module class names into the js file importing them. If this happens, mangling will still take place but no classes will be pruned from the css file.
+
+[This css-loader issue](https://github.com/webpack-contrib/css-loader/issues/1029) tracks a potential fix for some of these cases.
+
+### Dynamic classname lookups
+
+Any code that needs to look up the generated classname at runtime will run into the same problem as above: the bundle will include the entire mapping, which will signal to this plugin that every classname is "used". 
+
+Where possible, avoid dynamic classname lookups. E.g.
+
+```js
+import styles from './styles.css';
+
+// Avoid: entire classname mapping is required in the bundle
+const myVar = Math.random() > 0.5 ? 'containerV1' : 'containerV2';
+console.log(styles[myVar]);
+
+// Prefer: styles can be inlined by terser, which removes the mapping and allows the classes
+// to be pruned entirely from the css file by this plugin
+const myStyle = Math.random() > 0.5 ? styles.containerV1 : styles.containerV2;
+console.log(myStyle);
+```
+
+In both cases the mangling logic in the plugin will work, but the latter case will lead to smaller js and css bundles.
