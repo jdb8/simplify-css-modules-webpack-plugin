@@ -42,7 +42,7 @@ module.exports = {
 
 **It's also strongly recommended to enable the `esModule: true` option on both `css-loader` and the `mini-css-extract-plugin` loader**. Doing so should produce smaller tree-shaken js and css bundles.
 
-See the [testing dir](testing) for an example.
+See the [config we generate in tests](testing/generate-config.js) for an example.
 
 ## Behaviour
 
