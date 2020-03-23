@@ -1,5 +1,3 @@
-const schema = require("./plugin-options.json");
-
 const fs = require("fs");
 const path = require("path");
 const { promisify } = require("util");
@@ -12,6 +10,7 @@ const { ReplaceSource } = require("webpack-sources");
 const makeDir = require("make-dir");
 const debug = require("debug")("simplify-css-modules-webpack-plugin");
 
+const schema = require("./plugin-options.json");
 const manglePlugin = require("./postcss/mangle");
 
 const MAGIC_PREFIX = "__CSS_MODULE__";
