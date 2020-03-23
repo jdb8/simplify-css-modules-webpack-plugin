@@ -1,6 +1,6 @@
 # simplify-css-modules-webpack-plugin
 
-⚠️ Super alpha initial exploration, probably full of bad ideas `‾\_(ツ)_/‾` ⚠️
+⚠️ **Use with caution: this plugin is experimental!** ⚠️
 
 ## Installation
 
