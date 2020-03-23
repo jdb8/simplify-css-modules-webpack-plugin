@@ -25,7 +25,6 @@ module.exports = (pluginInstance = new SimplifyCssModulesPlugin()) => ({
                 // It's important to prefix your css-loader's localIdentName with
                 // the plugin's "magic prefix" so that it's easier for the plugin
                 // to identify css modules.
-                // localIdentName: `${SimplifyCssModulesPlugin.magicPrefix}[hash:base64]`
                 localIdentName: `${SimplifyCssModulesPlugin.magicPrefix}[local]`
               }
             }

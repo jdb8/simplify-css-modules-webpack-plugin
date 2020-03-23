@@ -38,6 +38,7 @@
     "postcss": "^7.0.26",
     "postcss-selector-parser": "^6.0.2",
     "purgecss": "^2.1.0",
+    "schema-utils": "^2.6.5",
     "webpack-sources": "^1.4.3"
   }
 }
