@@ -98,9 +98,9 @@ it("reuses existing classname mappings from disk", async () => {
   expect(outputMainCss).toMatch("my-disk-hashed-classname");
 });
 
-it("does not delete classes if noDelete = true", async () => {
+it("does not delete classes if prune = false", async () => {
   const config = generateConfig(
-    new SimplifyCssModulesPlugin({ noDelete: true, noMangle: true })
+    new SimplifyCssModulesPlugin({ prune: false, mangle: false })
   );
   await runTestingBuild(config);
   const outputMainCss = fs.readFileSync(
@@ -110,12 +110,12 @@ it("does not delete classes if noDelete = true", async () => {
   expect(outputMainCss).toMatch("unused");
 });
 
-describe.each([true, false])("with noMangle = %s", noMangle => {
+describe.each([true, false])("with mangle = %s", mangle => {
   let outputMainJs, outputMainCss, outputFooJs, outputFooCss;
   let allFiles;
 
   beforeEach(async () => {
-    const config = generateConfig(new SimplifyCssModulesPlugin({ noMangle }));
+    const config = generateConfig(new SimplifyCssModulesPlugin({ mangle }));
     await runTestingBuild(config);
     outputMainJs = fs.readFileSync(
       path.join(testingDir, "dist", "main.js"),

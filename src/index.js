@@ -2,6 +2,7 @@ const fs = require("fs");
 const path = require("path");
 const { promisify } = require("util");
 
+const validateOptions = require("schema-utils");
 const postcss = require("postcss");
 const purgecss = require("purgecss");
 const incstr = require("incstr");
@@ -9,6 +10,7 @@ const { ReplaceSource } = require("webpack-sources");
 const makeDir = require("make-dir");
 const debug = require("debug")("simplify-css-modules-webpack-plugin");
 
+const schema = require("./plugin-options.json");
 const manglePlugin = require("./postcss/mangle");
 
 const MAGIC_PREFIX = "__CSS_MODULE__";
@@ -20,7 +22,7 @@ function mangleAndTrackCSS(
   originalSourceValue,
   cssClasses,
   nextId,
-  noMangle
+  mangle
 ) {
   // Processing a css file involves running the mangle-css-selectors
   // plugin and replacing the original file. Also pass in `cssSelectors`
@@ -34,7 +36,7 @@ function mangleAndTrackCSS(
       idGenerator: nextId,
       cssClasses,
       requiredPrefix: MAGIC_PREFIX,
-      disable: noMangle
+      disable: !mangle
     })
   ]).process(originalSourceValue, { from: filePath, to: filePath }).css;
 }
@@ -105,7 +107,7 @@ function removeMagicPrefix(cssSource) {
 }
 
 async function handleOptimizeAssets(assets, compilation, cssClasses, options) {
-  const { noMangle, noDelete } = options;
+  const { mangle = true, prune = true } = options;
   const files = Object.keys(assets).filter(fileName => fileName !== "*");
 
   const filesByExt = { js: [], css: [] };
@@ -138,7 +140,7 @@ async function handleOptimizeAssets(assets, compilation, cssClasses, options) {
           originalSourceValue,
           cssClasses,
           nextId,
-          noMangle
+          mangle
         )
       );
     } else {
@@ -155,7 +157,7 @@ async function handleOptimizeAssets(assets, compilation, cssClasses, options) {
     compilation.assets[file] = replaceSource;
   });
 
-  if (!noDelete) {
+  if (prune) {
     const purger = new purgecss.PurgeCSS();
 
     purger.options.rejected = true;
@@ -185,7 +187,10 @@ async function handleOptimizeAssets(assets, compilation, cssClasses, options) {
 
 class SimplifyCSSModulesPlugin {
   constructor(options) {
-    this.options = options || {};
+    validateOptions(schema, options, {
+      name: "SimplifyCSSModulesPlugin"
+    });
+    this.options = options;
   }
 
   apply(compiler) {

@@ -1,0 +1,15 @@
+{
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+        "mangle": {
+            "type": "boolean"
+        },
+        "prune": {
+            "type": "boolean"
+        },
+        "mappingFilePath": {
+            "type": "string"
+        }
+    }
+}
