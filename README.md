@@ -46,6 +46,14 @@ module.exports = {
 
 See the [config we generate in tests](testing/generate-config.js) for an example.
 
+## Options
+
+| Name                | Type      | Default   | Description                                                                                                                                                               |
+|---------------------|-----------|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| **mangle**          | `{Boolean}` | `true`      | Whether the plugin should mangle css module classnames to short alternatives (overrides your `localIdentName`)                                                            |
+| **prune**           | `{Boolean}` | `true`      | Whether the plugin should remove unused css rules based on classes seen in your output js                                                                                 |
+| **mappingFilePath** | `{String}`  | `undefined` | If set, stores a mapping of mangled classnames to the target location. Recommended when running multiple builds that need the same classnames (e.g. a separate SSR build) |
+
 ## Behaviour
 
 The plugin will run on the js and css files produced by your build. It will run after assets have been optimised (i.e. after terser/other minifiers have run).
@@ -58,16 +66,21 @@ As a second step, any classnames that were not found referenced in the js files 
 
 ### Unique, short selectors
 
+*Enabled by the `mangle` option!*
+
 CSS Modules are great, but one problem they face is that it's possible to end up with the same rule in two different chunks depending on your `splitChunks` settings or use of dynamic imports.
 
 If this happens, and the rule is loaded-in lazily (via a dynamic import), it can break styling of the page due to re-applying styles to any existing elements with that className, due to the way css specificity works (based on the rule order, not the html classname order).
 
 ### More aggressive tree-shaking
 
-It's tricky to fully tree-shake css modules without resorting to a tool like PurgeCSS. The built-in options of `esModule` on both `css-loader` and the `mini-css-extract-plugin` loader provide some help, but leave behind unused rules in the extracted css files themselves.
+*Enabled by the `prune` option!*
+
+It's tricky to fully tree-shake css modules without resorting to running a tool like PurgeCSS on your output files. The built-in options of `esModule` on both `css-loader` and the `mini-css-extract-plugin` loader provide some help, but leave behind unused rules in the extracted css files themselves.
 
 Since we're iterating over the css module rules and finding connections between the js files that import from them, we can perform an additional pass using this information to remove unused rules that we otherwise wouldn't know about.
 
+Under the hood, we use PurgeCSS, but directly pass it the list of classnames that we know we saw during the `mangle` pass. This way, we don't have to write a custom extractor and can be sure that only module classname rules will be removed.
 
 ## Known limitations
 
