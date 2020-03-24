@@ -7,10 +7,12 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "jest --env node",
-    "manual-test": "cd testing && webpack"
+    "manual-test": "cd testing && webpack",
+    "release": "semantic-release"
   },
   "devDependencies": {
     "@jbateson/eslint-config": "2.3.0",
+    "@jbateson/semantic-release-config": "^1.0.0",
     "@typescript-eslint/eslint-plugin": "^2.0.0",
     "@typescript-eslint/parser": "^2.0.0",
     "babel-eslint": "^10.0.3",
@@ -27,6 +29,7 @@
     "mini-css-extract-plugin": "^0.9.0",
     "prettier": "^1.18.2",
     "rimraf": "^3.0.2",
+    "semantic-release": "^15.14.0",
     "webpack": "^4.41.5",
     "webpack-cli": "^3.3.10",
     "webpack-dev-server": "^3.10.1"
@@ -39,5 +42,8 @@
     "postcss-selector-parser": "^6.0.2",
     "purgecss": "^2.1.0",
     "webpack-sources": "^1.4.3"
+  },
+  "release": {
+    "extends": "@jbateson/semantic-release-config"
   }
 }
