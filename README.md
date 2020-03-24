@@ -1,6 +1,6 @@
 # simplify-css-modules-webpack-plugin
 
-![npm](https://badgen.net/npm/v/simplify-css-modules-webpack-plugin) ![Build status](https://github.com/jdb8/simplify-css-modules-webpack-plugin/workflows/main/badge.svg)
+[![npm](https://badgen.net/npm/v/simplify-css-modules-webpack-plugin)](https://www.npmjs.com/package/simplify-css-modules-webpack-plugin) ![Build status](https://github.com/jdb8/simplify-css-modules-webpack-plugin/workflows/main/badge.svg)
 
 ⚠️ **Use with caution: this plugin is experimental!** ⚠️
 
