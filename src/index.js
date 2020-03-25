@@ -9,11 +9,15 @@ const incstr = require("incstr");
 const { ReplaceSource } = require("webpack-sources");
 const makeDir = require("make-dir");
 const debug = require("debug")("simplify-css-modules-webpack-plugin");
+const { createHash } = require("webpack").util;
+
+const pluginVersion = require("../package.json").version;
 
 const schema = require("./plugin-options.json");
 const manglePlugin = require("./postcss/mangle");
 
 const MAGIC_PREFIX = "__CSS_MODULE__";
+const PLUGIN_NAME = "SimplifyCSSModulesPlugin";
 
 const writeFilePromise = promisify(fs.writeFile);
 
@@ -52,12 +56,14 @@ function replaceClassesInlineInJS(
   // it should be fairly safe to do this without more sophisticated parsing etc.
   const seen = [];
   Object.entries(cssClasses).forEach(([oldClassName, newClassName]) => {
-    const re = new RegExp(oldClassName, "g");
+    // Break the name with quotes to avoid over-eager matching
+    // We expect to see the oldClassName value quoted inside a css mapping object
+    const re = new RegExp(`(${oldClassName})["']`, "g");
     let match;
     while ((match = re.exec(originalSourceValue)) !== null) {
       replaceSource.replace(
         match.index,
-        match.index + match[0].length - 1,
+        match.index + match[1].length - 1,
         newClassName
       );
       seen.push(newClassName);
@@ -106,7 +112,13 @@ function removeMagicPrefix(cssSource) {
   return replaceSource;
 }
 
-async function handleOptimizeAssets(assets, compilation, cssClasses, options) {
+async function handleOptimizeAssets(
+  assets,
+  compilation,
+  cssClasses,
+  options,
+  fileChunkIdMapping
+) {
   const { mangle = true, prune = true } = options;
   const files = Object.keys(assets).filter(fileName => fileName !== "*");
 
@@ -129,7 +141,7 @@ async function handleOptimizeAssets(assets, compilation, cssClasses, options) {
     if (file.endsWith(".css")) {
       const nextId = incstr.idGenerator({
         prefix: "y_",
-        suffix: `_${index}`
+        suffix: `_${fileChunkIdMapping.get(file)}`
       });
       // Replace the entire source
       replaceSource.replace(
@@ -186,11 +198,19 @@ async function handleOptimizeAssets(assets, compilation, cssClasses, options) {
 }
 
 class SimplifyCSSModulesPlugin {
-  constructor(options) {
+  constructor(options = {}) {
     validateOptions(schema, options, {
-      name: "SimplifyCSSModulesPlugin"
+      name: PLUGIN_NAME
     });
     this.options = options;
+  }
+
+  getIdentifyingString() {
+    return JSON.stringify({
+      name: PLUGIN_NAME,
+      version: pluginVersion,
+      options: this.options
+    });
   }
 
   apply(compiler) {
@@ -202,31 +222,70 @@ class SimplifyCSSModulesPlugin {
     let cssClasses = {};
     if (mappingFilePath && fs.existsSync(mappingFilePath)) {
       console.log(
-        `[SimplifyCSSModulesPlugin] Found existing classname mapping file at ${mappingFilePath} - reading from disk.`
+        `[${PLUGIN_NAME}] Found existing classname mapping file at ${mappingFilePath} - reading from disk.`
       );
       cssClasses = JSON.parse(fs.readFileSync(mappingFilePath, "utf8"));
     }
 
-    compiler.hooks.compilation.tap("SimplifyCSSModulesPlugin", compilation => {
-      compilation.hooks.optimizeAssets.tapPromise(
-        "SimplifyCSSModulesPlugin",
-        assets =>
-          handleOptimizeAssets(assets, compilation, cssClasses, this.options)
+    compiler.hooks.compilation.tap(PLUGIN_NAME, compilation => {
+      const fileChunkIdMapping = new Map();
+      compilation.hooks.afterOptimizeChunkAssets.tap(PLUGIN_NAME, chunks => {
+        // Set up a mapping to keep track of files -> chunk ids
+        // TODO: consider moving the entire optimization work to be done in `optimizeChunkAssets`,
+        // using { stage: <high number> } to guarantee we run after terser
+        chunks.forEach(chunk => {
+          chunk.files.forEach(file => {
+            fileChunkIdMapping.set(file, chunk.id);
+          });
+        });
+      });
+
+      compilation.hooks.contentHash.tap(PLUGIN_NAME, chunk => {
+        // Update any contenthashes used in css files
+        // This is mostly stolen from https://github.com/webpack-contrib/mini-css-extract-plugin/blob/1ffc393a2e377fe0cc341cfcbc5396e07a8e4077/src/index.js#L222
+        // TODO: work out if there's a less hacky way to guarantee content hashes get updated
+        const { outputOptions } = compilation;
+        const { hashFunction, hashDigest, hashDigestLength } = outputOptions;
+        const hash = createHash(hashFunction);
+
+        hash.update(chunk.contentHash["css/mini-extract"] || "");
+        hash.update(this.getIdentifyingString());
+        chunk.contentHash["css/mini-extract"] = hash
+          .digest(hashDigest)
+          .substring(0, hashDigestLength);
+      });
+
+      // Regenerate `contenthash` for minified assets, since webpack 4 does not
+      // wait for minification before calculating the contenthash
+      // Mostly stolen from terser's workaround: https://github.com/webpack-contrib/terser-webpack-plugin/pull/44
+      // TODO: update this if a less hacky solution presents itself
+      const { mainTemplate, chunkTemplate } = compilation;
+      for (const template of [mainTemplate, chunkTemplate]) {
+        template.hooks.hashForChunk.tap(PLUGIN_NAME, (hash, chunk) => {
+          hash.update(this.getIdentifyingString());
+        });
+      }
+
+      compilation.hooks.optimizeAssets.tapPromise(PLUGIN_NAME, assets =>
+        handleOptimizeAssets(
+          assets,
+          compilation,
+          cssClasses,
+          this.options,
+          fileChunkIdMapping
+        )
       );
     });
 
     if (mappingFilePath) {
-      compiler.hooks.emit.tapPromise(
-        "SimplifyCSSModulesPlugin",
-        async compiler => {
-          console.log(
-            `[SimplifyCSSModulesPlugin] Writing css classname mappings to ${mappingFilePath}.`
-          );
-          const jsonClassNameMapping = JSON.stringify(cssClasses);
-          await makeDir(path.dirname(mappingFilePath));
-          return writeFilePromise(mappingFilePath, jsonClassNameMapping);
-        }
-      );
+      compiler.hooks.emit.tapPromise(PLUGIN_NAME, async compiler => {
+        console.log(
+          `[${PLUGIN_NAME}] Writing css classname mappings to ${mappingFilePath}.`
+        );
+        const jsonClassNameMapping = JSON.stringify(cssClasses);
+        await makeDir(path.dirname(mappingFilePath));
+        return writeFilePromise(mappingFilePath, jsonClassNameMapping);
+      });
     }
   }
 }

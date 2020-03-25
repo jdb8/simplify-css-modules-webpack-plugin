@@ -7,6 +7,7 @@ const fs = require("fs");
 const webpack = require("webpack");
 const rimraf = require("rimraf");
 const { JSDOM } = require("jsdom");
+const MiniCssExtractPlugin = require("mini-css-extract-plugin");
 
 const generateConfig = require("../testing/generate-config");
 
@@ -48,7 +49,7 @@ async function runTestingBuild(config = generateConfig()) {
         console.warn(info.warnings);
       }
 
-      return resolve();
+      return resolve(info);
     });
   });
 }
@@ -110,6 +111,54 @@ it("does not delete classes if prune = false", async () => {
   expect(outputMainCss).toMatch("unused");
 });
 
+it("generates a new contenthash for changed files", async () => {
+  const noPluginConfig = generateConfig(() => {});
+  const pluginConfig = generateConfig();
+
+  [pluginConfig, noPluginConfig].forEach(config => {
+    config.output = {
+      filename: "[name].[contenthash].js",
+      chunkFilename: "[name].[contenthash].chunk.js"
+    };
+    config.plugins = config.plugins.map(plugin => {
+      if (plugin.constructor.name !== "MiniCssExtractPlugin") {
+        return plugin;
+      }
+
+      return new MiniCssExtractPlugin({
+        filename: "[name].[contenthash].css",
+        chunkFilename: "[name].[contenthash].chunk.css"
+      });
+    });
+  });
+
+  const noPluginStats = await runTestingBuild(noPluginConfig);
+  const pluginStats = await runTestingBuild(pluginConfig);
+
+  pluginStats.assetsByChunkName.main.forEach(fileName => {
+    expect(noPluginStats.assetsByChunkName.main).not.toContain(fileName);
+  });
+
+  pluginStats.assetsByChunkName.foo.forEach(fileName => {
+    expect(noPluginStats.assetsByChunkName.foo).not.toContain(fileName);
+  });
+});
+
+it("does not match classes over-eagerly", async () => {
+  const config = generateConfig(
+    new SimplifyCssModulesPlugin({ mangle: false })
+  );
+  await runTestingBuild(config);
+  const outputMainJs = fs.readFileSync(
+    path.join(testingDir, "dist", "main.js"),
+    "utf8"
+  );
+
+  // We should not get confused between 'someClass' and 'someClassWithASharedPrefix'
+  expect(outputMainJs).toContain('"_someClassWithASharedPrefix"');
+  expect(outputMainJs).toContain('"_someClass"');
+});
+
 describe.each([true, false])("with mangle = %s", mangle => {
   let outputMainJs, outputMainCss, outputFooJs, outputFooCss;
   let allFiles;
@@ -144,7 +193,7 @@ describe.each([true, false])("with mangle = %s", mangle => {
     window.console.log = mockConsoleLog;
     window.eval(outputMainJs);
 
-    expect(mockConsoleLog).toHaveBeenCalledTimes(1);
+    expect(mockConsoleLog).toHaveBeenCalledTimes(2);
     expect(mockConsoleLog).toHaveBeenCalledWith(expect.any(String));
     expect(mockConsoleLog).not.toHaveBeenCalledWith(undefined);
     expect(mockConsoleLog).not.toHaveBeenCalledWith(null);
