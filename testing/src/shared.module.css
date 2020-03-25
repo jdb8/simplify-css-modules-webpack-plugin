@@ -1,0 +1,11 @@
+.some-shared-class {
+    color: blue;
+}
+
+.another-used-class {
+    background: red;
+}
+
+.a-not-used-shared-class {
+    color: pink;
+}

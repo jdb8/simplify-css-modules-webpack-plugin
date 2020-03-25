@@ -25,3 +25,11 @@
 .used > .unused {
     background: white;
 }
+
+.someClass {
+    outline: 1px solid black;
+}
+
+.someClassWithASharedPrefix {
+    outline: 1px solid white;
+}
