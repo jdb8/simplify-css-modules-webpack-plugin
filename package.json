@@ -2,6 +2,7 @@
   "name": "simplify-css-modules-webpack-plugin",
   "version": "1.0.1",
   "description": "Simplify your CSS Modules",
+  "license": "MIT",
   "main": "./src/index.js",
   "scripts": {
     "lint": "eslint .",
