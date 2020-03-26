@@ -1,3 +1,10 @@
+## [1.0.2](https://github.com/jdb8/simplify-css-modules-webpack-plugin/compare/v1.0.1...v1.0.2) (2020-03-26)
+
+
+### Bug Fixes
+
+* add license to package.json ([90fd780](https://github.com/jdb8/simplify-css-modules-webpack-plugin/commit/90fd780c69e6c356da1622cda5f33a84ab8cb31f))
+
 ## [1.0.1](https://github.com/jdb8/simplify-css-modules-webpack-plugin/compare/v1.0.0...v1.0.1) (2020-03-25)
 
 
