@@ -123,13 +123,15 @@ async function handleOptimizeAssets(
   const files = Object.keys(assets).filter(fileName => fileName !== "*");
 
   const filesByExt = { js: [], css: [] };
-  files.forEach(file => {
-    if (file.endsWith(".css")) {
-      filesByExt.css.push(file);
-    } else if (file.endsWith(".js")) {
-      filesByExt.js.push(file);
-    }
-  });
+  files
+    .filter(file => fileChunkIdMapping.has(file))
+    .forEach(file => {
+      if (file.endsWith(".css")) {
+        filesByExt.css.push(file);
+      } else if (file.endsWith(".js")) {
+        filesByExt.js.push(file);
+      }
+    });
 
   let seenClasses = [];
   [...filesByExt.css, ...filesByExt.js].forEach((file, index) => {

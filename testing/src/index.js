@@ -1,5 +1,6 @@
 import styles from "./styles.module.css";
 import sharedStyles from "./shared.module.css";
+import "./vendor.js";
 
 console.log(styles.used);
 console.log(sharedStyles["some-shared-class"]);
