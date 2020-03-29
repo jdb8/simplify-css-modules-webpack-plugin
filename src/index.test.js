@@ -159,6 +159,22 @@ it("does not match classes over-eagerly", async () => {
   expect(outputMainJs).toContain('"_someClass"');
 });
 
+it("ignores emitted binary assets from file-loader", async () => {
+  // The build shouldn't blow up if we see a file-loader emitted asset, even if
+  // it's js - only process files that are part of the actual chunk
+  const config = generateConfig();
+  config.module.rules.push({
+    test: /vendor.js$/,
+    use: [
+      {
+        loader: "file-loader"
+      }
+    ]
+  });
+
+  await runTestingBuild(config);
+});
+
 describe.each([true, false])("with mangle = %s", mangle => {
   let outputMainJs, outputMainCss, outputFooJs, outputFooCss;
   let allFiles;
@@ -190,6 +206,7 @@ describe.each([true, false])("with mangle = %s", mangle => {
     const { window } = new JSDOM("", {
       runScripts: "dangerously"
     });
+    window.alert = () => {};
     window.console.log = mockConsoleLog;
     window.eval(outputMainJs);
 
