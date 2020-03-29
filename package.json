@@ -1,6 +1,6 @@
 {
   "name": "simplify-css-modules-webpack-plugin",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Simplify your CSS Modules",
   "license": "MIT",
   "main": "./src/index.js",

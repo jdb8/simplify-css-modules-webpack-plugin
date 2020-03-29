@@ -1,3 +1,10 @@
+## [1.0.3](https://github.com/jdb8/simplify-css-modules-webpack-plugin/compare/v1.0.2...v1.0.3) (2020-03-29)
+
+
+### Bug Fixes
+
+* Ignore assets not part of a chunk ([#9](https://github.com/jdb8/simplify-css-modules-webpack-plugin/issues/9)) ([2cece21](https://github.com/jdb8/simplify-css-modules-webpack-plugin/commit/2cece21e9cdebd08d95eb19bd80e6a94895be5bf))
+
 ## [1.0.2](https://github.com/jdb8/simplify-css-modules-webpack-plugin/compare/v1.0.1...v1.0.2) (2020-03-26)
 
 
