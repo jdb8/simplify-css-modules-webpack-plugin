@@ -112,6 +112,22 @@ function removeMagicPrefix(cssSource) {
   return replaceSource;
 }
 
+function getClassnameGenerator(chunkId) {
+  const nextId = incstr.idGenerator({
+    suffix: chunkId
+  });
+
+  return () => {
+    // Classnames can't start with digits, so prefix
+    // with an underscore if we encounter one
+    let classname = nextId();
+    if (classname.match(/^\d/)) {
+      classname = `_${classname}`;
+    }
+    return classname;
+  };
+}
+
 async function handleOptimizeAssets(
   assets,
   compilation,
@@ -141,10 +157,8 @@ async function handleOptimizeAssets(
     const filePath = path.resolve(compilation.outputOptions.path, file);
 
     if (file.endsWith(".css")) {
-      const nextId = incstr.idGenerator({
-        prefix: "y_",
-        suffix: `_${fileChunkIdMapping.get(file)}`
-      });
+      const chunkId = fileChunkIdMapping.get(file);
+      const nextId = getClassnameGenerator(chunkId);
       // Replace the entire source
       replaceSource.replace(
         0,
