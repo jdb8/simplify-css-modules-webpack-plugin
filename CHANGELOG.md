@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/jdb8/simplify-css-modules-webpack-plugin/compare/v1.0.3...v1.1.0) (2020-03-31)
+
+
+### Features
+
+* generate smaller classnames when mangling ([#11](https://github.com/jdb8/simplify-css-modules-webpack-plugin/issues/11)) ([acf3706](https://github.com/jdb8/simplify-css-modules-webpack-plugin/commit/acf3706b9ad8c95e98baf21b29c3574979974ac8))
+
 ## [1.0.3](https://github.com/jdb8/simplify-css-modules-webpack-plugin/compare/v1.0.2...v1.0.3) (2020-03-29)
 
 
